@@ -1,10 +1,10 @@
+import urllib
+
 class TweetDataGetter():
 
     def __init__(self):
         pass
 
-
-import urllib
 class FOMC():
     def __init__(self):
         self.site = _
