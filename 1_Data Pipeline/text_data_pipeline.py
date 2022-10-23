@@ -4,6 +4,7 @@ from io import BytesIO
 import datetime
 import requests, pdfplumber
 from urllib import request
+import pandas as pd
 
 
 class TweetDataGetter():
@@ -11,96 +12,124 @@ class TweetDataGetter():
     def __init__(self):
         pass
 
+#note that within the strings, " was changed to  _quote_
 class FOMC():
     def __init__(self):
         self.mainSite = "https://www.federalreserve.gov"
-        self.years = getAllYears #storing the individual years in dict
-        self.user_agent = 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'
-        #self.rbindData = bindData 
-    def getLinks(self,url):
-        headers={'User-Agent':self.user_agent,} 
-        req = request.Request(url,None,headers) #The assembled request
-        response = request.urlopen(req)
-        return re.findall(r"""<\s*a\s*href=["']([^=]+)["']""", response.read().decode("utf-8"))
-        #need run else 404 error
+        self.yrs = self.getAllYears() #storing the individual years in dict
+        self.rbindData = bindData()
 
-    def getCurrentYr(self):
-        #turns out this appears in a different site so adding a separate function
-        url = self.mainSite + "/monetarypolicy/fomccalendars.htm"
-        urllist = [i for i in getLinks(url) if ".pdf" and "files/fomcminutes" in i]
-
-        curYr_dict = {}
-        for i in urllist:
-            date = re.findall('[0-9]+', os.path.basename(i))[0]
-            if date[:4] == "2022":
-                curYr_dict[int(date[4:6])] = mainSite + "/" + i
-        return readCurPDF(curYr_dict)
-
-    def readCurPDF(self,curYr_dict):
-        #loop through all the url in curYr_Dict
-        for i in curYr_dict.items():
-            curYr_dict[i[0]] = parsePDFcurYr(i[1], i[0])
-        return curYr_dict
-
-    def parsePDFcurYr(self,url, month):
-        rq = requests.get(url)
-        pdf = pdfplumber.open(BytesIO(rq.content))
-        pgs = ""
-        #skipping pg 1 since it always is the names of the parties involved 
-        #in retrospect, the name may affect outcome?
-        for i in range(2,len(pdf.pages)): #range(startPg, endPg) future update
-            page = pdf.pages[i]
-            #done because pdf is split in 2 halves, and to bypass merged words issue
-            left = page.crop((0, 0.1 * float(page.height), 0.5 * float(page.width), 1 * float(page.height)))
-            right = page.crop((0.5 * float(page.width), 0.1 * float(page.height), page.width, 1 * float(page.height)))
-            pgs += left.extract_text().replace("\n", " ") + " " + right.extract_text().replace("\n"," ")   
-
-        pgs = pgs.replace("- ","")
-        pgs = " ".join(pgs.split())
-
-        if month == 1 or month == 2: #2 due to scheduling differences
-            temp = []
-            pgs = pgs[pgs.find("AUTHORIZATION FOR DOMESTIC OPEN MARKET OPERATIONS"):]
-        else:
-            pgs = pgs[pgs.find("Developments in Financial Markets and Open Market Operations"):]
-        return pgs.rsplit('Voting for this action', 1)[0]
-        #returns a dict with month as key, text as value, url is removed
-
-    def getPrevYrs(self):
-        #go to site and get the links for each of the previous years available
-        url = self.mainSite + "/publications/annual-report.htm"
-
-        urllist = [i for i in getLinks(url) if ".pdf" in i][:-1]
-        reports_sites = [i if "federalreserve.gov/" in i else mainSite + i for i in urllist]
-        reports_sites = set(reports_sites)
-
-        #filters the html to get the yr. stored as nested dict, yrs [#year][#1 entry called sites]
-        yrs = {}
-        for i in reports_sites:
-            try:
-                yr = re.findall('[0-9]+', os.path.basename(i))[0]
-            except:
-                yr = re.findall('[0-9]+',i)[0]
-            if len(yr) == 2:
-                yr = "19" + yr if int(yr) > 94 else "20" + yr
-            yrs[int(yr)] = {"site" : i}
-        return yrs #will be #readPrevPDF(yrs) #once done
-
-    def readPrevPDF(self, curYr_dict):
-        pass
-    def parsePDFcurYr(self, url):
-        pass
-
-    def getAllYears(self):
-        #go to site and get the links for each of the previous years available
-        yrs = getPrevYrs()
-        #using 2022 directly, change if necessary
-        yrs[2022] = getCurrentYr()
-
-        #prob need add a catch clause here if the fed release the report in december of the same yr or before the january meeting
+    def yrChunk(yrs,links):
+        years = set([re.findall('[0-9]+', os.path.basename(i))[0][:4] for i in links])
+        for i in years:
+            temp = [j for j in links if i in j]
+            curYr = {}
+            for j in temp:
+                date = re.findall('[0-9]+', os.path.basename(j))[0]
+                #actually from here can call the function if done
+                curYr[int(date[4:6])] = parseHTML(j,date)
+            yrs[int(i)] = curYr
         return yrs
 
+    def miniTweaks(self, yrs):
+        yrs[2010][8] = yrs[2010][8].rsplit("Return to text",1)[0]
+        yrs[2020][3] = yrs[2020][3].rsplit("Voting",1)[0]
+        return(yrs)
+
+    def parseHTML(self, site, date):
+        pgs = requests.get(site, auth=('user', 'pass'))
+        pgs = str(BeautifulSoup(pgs.text, 'lxml'))
+        pgs = re.sub(r"<.*?>|\xad|amp;|\xa0", "", pgs)
+        pgs = re.sub(r"â\x80\x91|â\x80\x94|x92|x94|\n|\r|\t", " ", pgs)
+        pgs = re.sub(r' +', ' ', pgs)
+        pgs = re.sub('"',"_quote_",pgs)
+        
+        if 'Votes for:' in pgs:
+            pgs = pgs.rsplit('Votes for:', 1)[0]
+        elif "Votes for this action:" in pgs:
+            pgs = pgs.rsplit('Votes for this action:', 1)[0]
+        else:
+            pgs = pgs.rsplit("Voting for this action", 1)[0]
+        
+        #this one is more or less
+        if int(date) > 20120101:
+            if int(date[4:6]) == 1 or int(date[4:6]) == 2: #2 due to scheduling differences
+                pgs = pgs[pgs.find("AUTHORIZATION FOR DOMESTIC OPEN MARKET OPERATIONS"):]
+            else:
+                if "Developments in Financial Markets" in pgs:
+                    pgs = pgs[pgs.find("Developments in Financial Markets"):]
+                else:
+                    pgs = pgs[pgs.find("Discussion of Financial Markets and Open Market Operations"):]
+            return pgs.rsplit(' for this action:', 1)[0]
+        
+        elif int(date) < 20071031:
+            if int(date[4:6]) == 1 or int(date[4:6]) == 2: #2 due to scheduling differences
+                if date == "19950201":
+                    pgs = pgs[pgs.find("The Committee then turned to a discussion of the"):] 
+                else:
+                    pgs = pgs[pgs.find("Authorization for Domestic Open Market Operations"):]
+            else:
+                try:
+                    if date == '20070628':
+                        pgs = pgs[pgs.find("The information reviewed"):]
+                    elif "The Committee then turned to a discussion of the" in pgs:
+                        pgs = pgs[pgs.find("The Committee then turned to a discussion of the"):]  
+                    else: #if "the Committee ratified these transactions." in pgs:
+                        pgs = pgs.split("By unanimous vote, the Committee ratified these transactions.",1)[1]
+                except:
+                    print(pgs)
+            if ' for this action:' not in pgs:
+                if 'Votes for:' not in pgs:
+                    return pgs.rsplit("It was agreed that the next meeting",1)[0]
+            return pgs
+        else:
+            if int(date[4:6]) == 1 or int(date[4:6]) == 2: #2 due to scheduling differences
+                pgs = pgs[pgs.find("AUTHORIZATION FOR DOMESTIC OPEN MARKET OPERATIONS"):]
+            else:
+                try:
+                    if int(date[:4]) < 2009:
+                        if "By unanimous vote, the Committee ratified these transactions." in pgs:
+                            pgs = pgs.split("By unanimous vote, the Committee ratified these transactions.",1)[1]
+                    else:
+                        pgs = pgs[pgs.find("Developments in Financial Markets"):]
+                except:
+                    print(pgs)
+            return pgs
+
+    def getAllYears(self): 
+        yrs = {}      
+        site = self.mainSite + "/monetarypolicy/fomccalendars.htm"
+        r = requests.get(site, auth=('user', 'pass'))
+        links = re.findall(r"""<\s*a\s*href=["']([^=]+)["']""", r.text)
+        links = [self.mainSite + i for i in links if ".htm" and "monetarypolicy/fomcminutes" in i]
+
+        #get the smallest yr from main
+        startYr = int(min([re.findall('[0-9]+', os.path.basename(i))[0][:4] for i in links]))
+        yrs = yrChunk(yrs, links)
+
+        #93 the website change
+        for i in range(1993,startYr):
+            site = "https://www.federalreserve.gov/monetarypolicy/fomchistorical" + str(i) + ".htm"
+            r = requests.get(site, auth=('user', 'pass'))
+            links = re.findall(r"""<\s*a\s*href=["']([^=]+)["']""", r.text)
+            links = [self.mainSite + i for i in links if ".htm" in i]
+
+            #07' oct, website changed
+            #12, website changed #same url though
+            if i < 2007:
+                links = [i for i in links if "fomc/minutes/" in i.lower()]
+            elif i == 2007:
+                link1 = [i for i in links if "fomc/minutes/" in i.lower()]
+                links = link1 + [i for i in links if "monetarypolicy/fomcminutes" in i.lower()]
+            else:
+                links = [i for i in links if "monetarypolicy/fomcminutes" in i.lower()]
+            links = [i for i in links if "#" not in i] #some have hash
+            yrs = yrChunk(yrs, links)
+            
+            return miniTweaks(yrs)
 
     def bindData(self):
-        #loop through the dict and bind into 1 df
-        return self.rbindData
+        self.rbindData =  pd.DataFrame.from_dict({
+            "years": [i for i in self.yrs.keys() for j in self.yrs[i].keys()], 
+            "months": [j for i in self.yrs.keys() for j in self.yrs[i].keys()],
+            "text": [j[1] for i in self.yrs.keys() for j in self.yrs[i].items()]})
