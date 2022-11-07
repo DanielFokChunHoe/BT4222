@@ -21,7 +21,7 @@ jobs:
           pip install -r requirements.txt
       - name: execute py script
         run: |
-          python run.py
+          python economic_data_refresh.py
           
       - uses: stefanzweifel/git-auto-commit-action@v4
         with:
