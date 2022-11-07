@@ -1,4 +1,5 @@
-from Data_Pipeline.economic_data_pipeline import EconomicDataGetter
+from DataPipeline.economic_data_pipeline import EconomicDataGetter
+
 
 def refresh_economic_data():
 
