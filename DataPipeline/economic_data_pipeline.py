@@ -37,6 +37,8 @@ class EconomicDataGetter():
             'Total Nonfarm Private Payroll Employment': 'ADPWNUSNERSA', 
             'Initial Claims': 'ICSA', 
             'Continued Claims (Insured Unemployment)':'CCSA',
+            'KC Fed Labor Market Conditions Index, Level of Activity Indicator': 'FRBKCLMCILA',
+            'University of Michigan: Consumer Sentiment': 'UMCSENT',
 
         # Financial Market
             # Bond Market Indices, Daily
@@ -55,8 +57,9 @@ class EconomicDataGetter():
             'Total Borrowings of Depository Institutions from the Federal Reserve':'TOTBORR',
             'Borrowings, All Commercial Banks': 'H8B3094NCBA',
 
-        'KC Fed Labor Market Conditions Index, Level of Activity Indicator': 'FRBKCLMCILA',
+        # Business
+            'Total Business: Inventories to Sales Ratio': 'ISRATIO'
 
-        'M2V': 'M2V'}
+        }
         return self.form_economic_data_payload(dict_of_fred_codes, save_name = 'BT4222 Data Payload.csv')
 

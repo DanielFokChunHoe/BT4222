@@ -9,6 +9,7 @@ def main():
                                                             'Total Nonfarm Private Payroll Employment',
                                                            'CBOE EuroCurrency ETF Volatility Index',
                                                            'ICE BofA US Emerging Markets Liquid Corporate Plus Index Total Return Index Value'])
+    #these are dropped because they limit the number of samples we have too much
     df.index = pd.to_datetime(df['index']).rename('Date')
     df = df.drop(columns = ['index'])
     
