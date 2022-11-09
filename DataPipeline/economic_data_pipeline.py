@@ -60,8 +60,11 @@ class EconomicDataGetter():
         # Business
             'Total Business: Inventories to Sales Ratio': 'ISRATIO',
             'Retail Sales': 'RSXFS',
-            'Industrial Production':'INDPRO'
+            'Industrial Production':'INDPRO',
+            'Core PCE':'PCEPILFE'
 
         }
         return self.form_economic_data_payload(dict_of_fred_codes, save_name = 'BT4222 Data Payload.csv')
 
+
+EconomicDataGetter().get_bt4222_economic_data_payload()
