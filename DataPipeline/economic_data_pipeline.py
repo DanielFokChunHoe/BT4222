@@ -58,7 +58,9 @@ class EconomicDataGetter():
             'Borrowings, All Commercial Banks': 'H8B3094NCBA',
 
         # Business
-            'Total Business: Inventories to Sales Ratio': 'ISRATIO'
+            'Total Business: Inventories to Sales Ratio': 'ISRATIO',
+            'Retail Sales': 'RSXFS',
+            'Industrial Production':'INDPRO'
 
         }
         return self.form_economic_data_payload(dict_of_fred_codes, save_name = 'BT4222 Data Payload.csv')
