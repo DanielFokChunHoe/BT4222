@@ -16,21 +16,19 @@ from nltk.tokenize import sent_tokenize, word_tokenize
 import matplotlib.pyplot as plt
 import numpy as np
 from nltk.sentiment import SentimentIntensityAnalyzer
+import os
+from bs4 import BeautifulSoup
 %matplotlib notebook
 
-class TweetDataGetter():
-
-    def __init__(self):
-        pass
-
 #note that initialisation will take time
+
 class FOMC():
     def __init__(self):
         self.mainSite = "https://www.federalreserve.gov"
         self.yrs = self.getAllYears() #storing the individual years in dict
         self.rbindData = self.bindData()
 
-    def yrChunk(yrs,links):
+    def yrChunk(self, yrs,links):
         years = set([re.findall('[0-9]+', os.path.basename(i))[0][:4] for i in links])
         for i in years:
             temp = [j for j in links if i in j]
@@ -38,7 +36,7 @@ class FOMC():
             for j in temp:
                 date = re.findall('[0-9]+', os.path.basename(j))[0]
                 #actually from here can call the function if done
-                curYr[int(date[4:6])] = parseHTML(j,date)
+                curYr[int(date[4:6])] = self.parseHTML(j,date)
             yrs[int(i)] = curYr
         return yrs
 
@@ -111,7 +109,7 @@ class FOMC():
 
         #get the smallest yr from main
         startYr = int(min([re.findall('[0-9]+', os.path.basename(i))[0][:4] for i in links]))
-        yrs = yrChunk(yrs, links)
+        yrs = self.yrChunk(yrs, links)
 
         #93 the website change
         for i in range(1993,startYr):
@@ -130,11 +128,11 @@ class FOMC():
             else:
                 links = [i for i in links if "monetarypolicy/fomcminutes" in i.lower()]
             links = [i for i in links if "#" not in i] #some have hash
-            yrs = yrChunk(yrs, links)
-            return yrs
+            yrs = self.yrChunk(yrs, links)
+        return yrs
 
     #breaking each report down to individual sentences
-    def clearing(txt):
+    def clearing(self, txt):
         temp = re.split("\.\s",txt)
         temp = [re.sub('\si$|\sii$|\siii$|\siv$|\sv$|\svi$|\svii$|\sviii$|\six$|\sx$|\sxi$|\sxii$|\sxv$',"",i) for i in temp]
         temp = [re.sub('--'," ",i) for i in temp]
@@ -148,12 +146,12 @@ class FOMC():
             "months": [j for i in self.yrs.keys() for j in self.yrs[i].keys()],
             "text": [j[1] for i in self.yrs.keys() for j in self.yrs[i].items()]})
         for i in range(len(main)):
-            main['text'][i] = clearing(main['text'][i])
+            main['text'][i] = self.clearing(main['text'][i])
         self.rbindData = main
         self.process()
         return main
 
-    def text_clean(corpus, keep_list):
+    def text_clean(self, corpus, keep_list):
         cleaned_corpus = pd.Series()
         for row in corpus:
             qs = []
@@ -166,12 +164,12 @@ class FOMC():
             cleaned_corpus = cleaned_corpus.append(pd.Series(' '.join(qs)))
         return cleaned_corpus
 
-    def lemmatize(corpus):
+    def lemmatize(self, corpus):
         lem = WordNetLemmatizer()
         corpus = [[lem.lemmatize(x, pos = 'v') for x in x] for x in corpus]
         return corpus
 
-    def stopwords_removal(corpus):
+    def stopwords_removal(self, corpus):
         fedNames = ['mr',"phillips","treasury",'yellen','minehan','rivlin','stern',"messrs",'corrigan','meyer','jordan',
                 'broaddus','laware','mcteer','mcdonough','pianalto','poole','fisher','evans','vote',"kelley",
                 'gramlich','ms','duke','moskow','mullins','bies', 'lindsey', 'olson', 'stewart', 'angell', 
@@ -185,15 +183,15 @@ class FOMC():
         corpus = [[x for x in x.split(" ") if x not in stop] for x in corpus]
         return corpus
 
-    def preprocess(corpus, keep_list, cleaning = True, lemmatization = False, remove_stopwords = True):    
+    def preprocess(self, corpus, keep_list, cleaning = True, lemmatization = False, remove_stopwords = True):    
         if cleaning == True:
-            corpus = text_clean(corpus, keep_list)
+            corpus = self.text_clean(corpus, keep_list)
         if remove_stopwords == True:
-            corpus = stopwords_removal(corpus)
+            corpus = self.stopwords_removal(corpus)
         else :
             corpus = [[x for x in x.split(" ")] for x in corpus]
         if lemmatization == True:
-            corpus = lemmatize(corpus)
+            corpus = self.lemmatize(corpus)
         corpus = [' '.join(x) for x in corpus]        
         return corpus
 
@@ -217,7 +215,7 @@ class FOMC():
 
         #s_a aka sentiment_analysis
         s_a = pd.DataFrame({"dm": dateinfo,"text":mainls})
-        processedTxt = preprocess(s_a['text'], keep_list = [],lemmatization = True)
+        processedTxt = self.preprocess(s_a['text'], keep_list = [],lemmatization = True)
         s_a['text'] = processedTxt
         self.wordDist = self.getWordDist(s_a.copy())
         self.allSentiment = self.getTotalSentiment(s_a.copy())
@@ -249,14 +247,4 @@ class FOMC():
         
     def saveOut(self):
         self.rbindData.to_csv("scrapedData.csv",index=False)
-
-
-        
-#main calls, assuming final = FOMC()
-#final.allSentiment
-#final.monthlySentiment
-#final.wordDist
-#final.mostCommonWords()
-#final.totalSentimentHistogram()
-#final.monthlySentimentGraph()
-#final.rbindData
+    
