@@ -1,8 +1,7 @@
 import pandas as pd
-import datetime
+import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.feature_selection import SelectFromModel
 from sklearn import linear_model
 from sklearn.metrics import mean_squared_error
 from statsmodels.regression.linear_model import OLS
@@ -15,7 +14,7 @@ from statsmodels.regression.linear_model import OLS
 
 class Model():
     
-    def __init__(self, dataframe, target_variable_name):
+    def __init__(self, dataframe, target_variable_name, unique_timeshifts_accepted = 3, min_lead = 6, max_lead = 24):
         self.dataframe = dataframe
         
         self.features = list(dataframe.columns)
@@ -25,19 +24,15 @@ class Model():
         self.target_variable_name = target_variable_name
         self.target_variable_dataframe = self.dataframe[[self.target_variable_name]]
         
-        self.time_shifted_feature_dataframe = self.generate_time_shifted_feature_dataframe()
-        
         self.random_state = 42
-        self.unique_timeshifts_accepted = 2
-    
-    def process_variables(self, numerical_variables, categorical_variables, continuous_buckets):
-        pass
-    
-    def handle_collinearity(self):
-        pass
+        self.unique_timeshifts_accepted = unique_timeshifts_accepted
+        self.min_lead = min_lead
+        self.max_lead = max_lead
+        
+        self.time_shifted_feature_dataframe = self.generate_time_shifted_feature_dataframe()
     
     #generate feature dataframe with all possible time shifts applied
-    def generate_time_shifted_feature_dataframe(self, max_shift = 12):
+    def generate_time_shifted_feature_dataframe(self):
         
         feature_payload = []
         
@@ -45,7 +40,7 @@ class Model():
             
             temp_feature = self.feature_dataframe[[feature]]
             
-            for i in range(6, max_shift + 1):
+            for i in range(self.min_lead, self.max_lead + 1):
                 temp_shifted_feature = temp_feature.copy()
                 temp_shifted_feature.index = temp_shifted_feature.index.shift(i, freq = 'MS')
                 temp_shifted_feature.columns = [feature + ' (Leading by ' + str(i) + ' Months)']
@@ -137,7 +132,7 @@ class Model():
         X = time_shifted_feature_dataframe
         y = self.target_variable_dataframe.copy()
         model_data = y.merge(X, how = 'inner', left_index = True, right_index = True).dropna()
-        X_train, X_test, y_train, y_test = train_test_split(model_data, model_data[self.target_variable_name], test_size=0.2, random_state=self.random_state)
+        X_train, X_test, y_train, y_test = train_test_split(model_data, model_data[self.target_variable_name], test_size=0.3, random_state=self.random_state)
         if self.target_variable_name in X_train.columns:
             X_train = X_train.drop(columns = [self.target_variable_name])
             X_test = X_test.drop(columns = [self.target_variable_name])
